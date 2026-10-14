@@ -12,7 +12,7 @@
                             type="object"
                             class="oe_stat_button"
                             invisible="not res_ids"
-                            icon="fa-external-link"
+                            icon="open_in_new"
                             string="Exported Records"
                         />
                     </div>
