@@ -7,6 +7,7 @@ from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Command
 from odoo.orm.identifiers import NewId
+from odoo.tools.misc import StackMap
 
 FIELDS_BLACKLIST = [
     "id",
@@ -87,9 +88,13 @@ class ThrowAwayCache:
                 f"_original_{attribute}",
                 instance,
             )
-            # Create an empty copy of the container instance
-            replacement = copy.copy(instance)
-            replacement.clear()
+            # Create an empty container of the same kind. A copy of a StackMap
+            # would share its list of maps with the original.
+            if isinstance(instance, StackMap):
+                replacement = StackMap()
+            else:
+                replacement = copy.copy(instance)
+                replacement.clear()
             setattr(
                 self._transaction,
                 attribute,
