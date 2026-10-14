@@ -893,4 +893,4 @@ class AuditlogRule(models.Model):
         # this code comes from `base_automation` which has a similar need
         if self.env.registry.ready and not self.env.context.get("import_file"):
             # notify other workers
-            self.env.registry.registry_invalidated = True
+            self.env.transaction.will_change_registry()
