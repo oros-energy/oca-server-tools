@@ -3,6 +3,8 @@
 # © 2021 Stefan Rijnhart <stefan@opener.amsterdam>
 # License AGPL-3.0 or later (https://www.gnu.org/licenses/agpl).
 
+from unittest.mock import patch
+
 from odoo.fields import Command
 
 from odoo.addons.base.models.ir_model import MODULE_UNINSTALL_FLAG
@@ -464,6 +466,39 @@ class TestFieldRemoval(AuditLogRuleCommon):
         self.assertFalse(self.logs.mapped("model_id"))
         # Assert rule values
         self.assertFalse(self.auditlog_rule.model_id)
+
+    def assert_action_removed_by_orm(self, remove_model):
+        """The rule's action is unlinked through the ORM before the model
+        row goes. Left to the database cascade, the order of the foreign key
+        triggers decides whether the delete fails, see
+        ir.model._unlink_auditlog_actions."""
+        action = self.auditlog_rule.action_id
+        self.assertTrue(action)
+        window_class = type(self.env["ir.actions.act_window"])
+        original = window_class.unlink
+        removed = []
+
+        def spy(records):
+            removed.extend(records.ids)
+            return original(records)
+
+        with patch.object(window_class, "unlink", spy):
+            remove_model()
+        self.assertIn(action.id, removed)
+        self.assertFalse(action.exists())
+        self.auditlog_rule.invalidate_recordset()
+        self.assertFalse(self.auditlog_rule.action_id)
+        self.assertFalse(self.auditlog_rule.model_id)
+
+    def test_02_model_removal_removes_action(self):
+        self.assert_action_removed_by_orm(self.test_model.unlink)
+
+    def test_03_model_removal_during_auditlog_uninstall(self):
+        # In 20.0 ondelete methods follow the modules being uninstalled, not
+        # MODULE_UNINSTALL_FLAG. The hook must run for auditlog's own too.
+        model = self.test_model.with_context(**{MODULE_UNINSTALL_FLAG: True})
+        with patch.object(self.registry, "uninstalling_modules", {"auditlog"}):
+            self.assert_action_removed_by_orm(model.unlink)
 
 
 class TestAuditlogFullCaptureRecord(AuditLogRuleCommon, AuditlogCommon):
